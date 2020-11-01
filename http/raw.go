@@ -266,39 +266,56 @@ func addPlaylist(ar io.Writer, r *http.Request, d *data, path string) error {
 				return err
 			}
 		}
-	}else{
-        // Generate 24h shared links for included files
-        var s *share.Link
+	} else {
+		// Generate 24h shared links for included files
+		var s *share.Link
 
-        bytes := make([]byte, 6)
-        _, err := rand.Read(bytes)
-        if err != nil {
-            return err
-        }
+		bytes := make([]byte, 6)
+		_, err := rand.Read(bytes)
+		if err != nil {
+			return err
+		}
 
-        str := base64.URLEncoding.EncodeToString(bytes)
+		str := base64.URLEncoding.EncodeToString(bytes)
 
-        var expire int64 = 0
-        var add time.Duration
-        add = time.Hour * time.Duration(24)
-        expire = time.Now().Add(add).Unix()
+		var expire int64 = 0
+		var add time.Duration
+		add = time.Hour * time.Duration(24)
+		expire = time.Now().Add(add).Unix()
 
-        s = &share.Link{
-            Path:   file.Name(),
-            Hash:   str,
-            Expire: expire,
-            UserID: d.user.ID,
-        }
+		var fo *files.FileOptions
+		fo = &files.FileOptions {
+			Fs: d.user.Fs,
+			Path: path,
+			Modify: false,
+			Expand:true,
+			Checker: d,
+		}
+		fi,err := files.NewFileInfo(*fo)
+		if err != nil {
+			return err
+		}
+		if fi.Type!="video" && fi.Type!="audio" {
+			return nil
+		}
 
-        if err := d.store.Share.Save(s); err != nil {
-            return err
-        }
-        var baseURL = ""
-        baseURL = r.URL.Query().Get("base")
+		s = &share.Link {
+			Path:   file.Name(),
+			Hash:   str,
+			Expire: expire,
+			UserID: d.user.ID,
+		}
 
-        str = fmt.Sprintf("%s/api/public/dl/%s/%s\n", baseURL, s.Hash, filepath.Base(s.Path))
-        _, err = fmt.Fprintf(ar, str)
-    }
+		if err := d.store.Share.Save(s); err != nil {
+			return err
+		}
+
+		var baseURL = ""
+		baseURL = r.URL.Query().Get("base")
+
+		str = fmt.Sprintf("%s/api/public/dl/%s/%s\n", baseURL, s.Hash, filepath.Base(s.Path))
+		_, err = fmt.Fprintf(ar, str)
+	}
 
 	return nil
 }
