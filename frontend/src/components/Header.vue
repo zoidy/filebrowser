@@ -20,6 +20,7 @@
         <!-- Menu that shows on listing AND mobile when there are files selected -->
         <div id="file-selection" v-if="isMobile && isListing">
           <span v-if="selectedCount > 0">{{ selectedCount }} selected</span>
+          <play-button v-show="showPlayButton"></play-button>
           <share-button v-show="showShareButton"></share-button>
           <rename-button v-show="showRenameButton"></rename-button>
           <copy-button v-show="showCopyButton"></copy-button>
@@ -30,6 +31,7 @@
         <!-- This buttons are shown on a dropdown on mobile phones -->
         <div id="dropdown" :class="{ active: showMore }">
           <div v-if="!isListing || !isMobile">
+            <play-button v-show="showPlayButton"></play-button>
             <share-button v-show="showShareButton"></share-button>
             <rename-button v-show="showRenameButton"></rename-button>
             <copy-button v-show="showCopyButton"></copy-button>
@@ -67,6 +69,7 @@ import MoveButton from './buttons/Move'
 import CopyButton from './buttons/Copy'
 import ShareButton from './buttons/Share'
 import ShellButton from './buttons/Shell'
+import PlayButton from './buttons/Play'
 import {mapGetters, mapState} from 'vuex'
 import { logoURL, enableExec } from '@/utils/constants'
 import * as api from '@/api'
@@ -85,7 +88,8 @@ export default {
     UploadButton,
     SwitchButton,
     MoveButton,
-    ShellButton
+    ShellButton,
+    PlayButton
   },
   data: function () {
     return {
@@ -129,6 +133,11 @@ export default {
     },
     showDownloadButton () {
       return this.isFiles && this.user.perm.download
+    },
+    showPlayButton () {
+      return this.isFiles && !this.isEditor && (this.isListing
+        ? (this.selectedCount > 0 && this.user.perm.share)
+        : this.user.perm.share)
     },
     showDeleteButton () {
       return this.isFiles && (this.isListing

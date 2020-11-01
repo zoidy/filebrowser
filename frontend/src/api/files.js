@@ -60,7 +60,7 @@ export async function put (url, content = '') {
 export function download (format, ...files) {
   let url = `${baseURL}/api/raw`
 
-  if (files.length === 1) {
+  if (files.length === 1 && format !== "m3u") {
     url += removePrefix(files[0]) + '?'
   } else {
     let arg = ''
