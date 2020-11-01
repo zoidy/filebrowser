@@ -75,7 +75,7 @@ export function download (format, ...files) {
   }
 
   if (format !== null) {
-    url += `algo=${format}&`
+    url += `algo=${format}&base=`+window.location.origin+`&`
   }
 
   url += `auth=${store.state.jwt}`
