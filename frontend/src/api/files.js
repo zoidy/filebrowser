@@ -75,7 +75,7 @@ export function download (format, ...files) {
   }
 
   if (format) {
-    url += `algo=${format}&`
+    url += `algo=${format}&base=`+window.location.origin+`&`
   }
 
   if (store.state.jwt){

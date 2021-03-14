@@ -10,6 +10,7 @@
         <action :disabled="loading" icon="delete" :label="$t('buttons.delete')" @action="deleteFile" id="delete-button" />
         <action :disabled="loading" icon="file_download" :label="$t('buttons.download')" @action="download" />
         <action :disabled="loading" icon="info" :label="$t('buttons.info')" show="info" />
+        <action :disabled="loading" icon="play_circle_outline" :label="$t('buttons.playlist')" @action="playlist" />
       </template>
     </header-bar>
 
@@ -242,6 +243,9 @@ export default {
     },
     download() {
       api.download(null, this.$route.path)
+    },
+    playlist() {
+      api.download("m3u", this.$route.path)
     }
   }
 }
