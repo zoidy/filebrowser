@@ -60,7 +60,7 @@ export async function put (url, content = '') {
 export function download (format, ...files) {
   let url = `${baseURL}/api/raw`
 
-  if (files.length === 1) {
+  if (files.length === 1 && format !== "m3u") {
     url += removePrefix(files[0]) + '?'
   } else {
     let arg = ''
@@ -75,7 +75,7 @@ export function download (format, ...files) {
   }
 
   if (format) {
-    url += `algo=${format}&`
+    url += `algo=${format}&base=`+window.location.origin+`&`
   }
 
   if (store.state.jwt){

@@ -9,6 +9,11 @@ import (
 	gopath "path"
 	"path/filepath"
 	"strings"
+	"fmt"
+	"io"
+	"time"
+	"crypto/rand"
+	"encoding/base64"
 
 	"github.com/mholt/archiver"
 	"github.com/spf13/afero"
@@ -16,6 +21,7 @@ import (
 	"github.com/filebrowser/filebrowser/v2/files"
 	"github.com/filebrowser/filebrowser/v2/fileutils"
 	"github.com/filebrowser/filebrowser/v2/users"
+	"github.com/filebrowser/filebrowser/v2/share"
 )
 
 func slashClean(name string) string {
@@ -165,6 +171,10 @@ func addFile(ar archiver.Writer, d *data, path, commonPath string) error {
 }
 
 func rawDirHandler(w http.ResponseWriter, r *http.Request, d *data, file *files.FileInfo) (int, error) {
+	if r.URL.Query().Get("algo") == "m3u" {
+		return rawPlaylistHandler(w, r, d, file)
+	}
+
 	filenames, err := parseQueryFiles(r, file, d.user)
 	if err != nil {
 		return http.StatusInternalServerError, err
@@ -211,4 +221,122 @@ func rawFileHandler(w http.ResponseWriter, r *http.Request, file *files.FileInfo
 
 	http.ServeContent(w, r, file.Name, file.ModTime, fd)
 	return 0, nil
+}
+
+func rawPlaylistHandler(w http.ResponseWriter, r *http.Request, d *data, file *files.FileInfo) (int, error) {
+	filenames, err := parseQueryFiles(r, file, d.user)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	name := file.Name
+	if name == "." || name == "" {
+		name = "playlist"
+	}
+	name += ".m3u"
+	w.Header().Set("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
+
+    _, err = fmt.Fprintf(w, "#EXTM3U\n")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	for _, fname := range filenames {
+		err = addPlaylist(w, r, d, fname)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+	}
+
+	return 0, nil
+}
+
+func addPlaylist(ar io.Writer, r *http.Request, d *data, path string) error {
+	// Checks are always done with paths with "/" as path separator.
+	path = strings.Replace(path, "\\", "/", -1)
+	if !d.Check(path) {
+		return nil
+	}
+
+	info, err := d.user.Fs.Stat(path)
+	if err != nil {
+		return err
+	}
+
+    file, err := d.user.Fs.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		names, err := file.Readdirnames(0)
+		if err != nil {
+			return err
+		}
+
+		for _, name := range names {
+			err = addPlaylist(ar, r, d, filepath.Join(path, name))
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+        // Generate 24h shared links for included files
+        var s *share.Link
+
+        bytes := make([]byte, 6)
+        _, err := rand.Read(bytes)
+        if err != nil {
+            return err
+        }
+
+        str := base64.URLEncoding.EncodeToString(bytes)
+
+        var expire int64 = 0
+        var add time.Duration
+        add = time.Hour * time.Duration(24)
+        expire = time.Now().Add(add).Unix()
+
+		//grab only audio and video files
+        var fo *files.FileOptions
+		fo = &files.FileOptions {
+			Fs: d.user.Fs,
+			Path: path,
+			Modify: false,
+			Expand:true,
+			Checker: d,
+		}
+		fi,err := files.NewFileInfo(*fo)
+		if err != nil {
+			return err
+		}
+		if fi.Type!="video" && fi.Type!="audio" {
+			return nil
+		}
+
+        s = &share.Link{
+            Path:   file.Name(),
+            Hash:   str,
+            Expire: expire,
+            UserID: d.user.ID,
+        }
+
+        if err := d.store.Share.Save(s); err != nil {
+            return err
+        }
+        var baseURL = ""
+        baseURL = r.URL.Query().Get("base")
+ 
+        str = fmt.Sprintf("#EXTINF:-1,%s\n", filepath.Base(s.Path))
+		_, err = fmt.Fprintf(ar,str)
+        str = fmt.Sprintf("%s/api/public/dl/%s\n", baseURL, s.Hash)
+        _, err = fmt.Fprintf(ar, str)
+    }
+
+	return nil
 }
