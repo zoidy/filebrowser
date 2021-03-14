@@ -6,7 +6,8 @@
 
       <template #actions>
         <template v-if="!isMobile">
-          <action v-if="headerButtons.share" icon="share" :label="$t('buttons.share')" show="share" />
+          <action v-if="headerButtons.share" icon="share" :label="$t('buttons.share')" show="share" /> 
+          <action v-if="headerButtons.playlist" icon="play_circle_outline" :label="$t('buttons.playlist')" @action="playlist" :counter="selectedCount" />
           <action v-if="headerButtons.rename" icon="mode_edit" :label="$t('buttons.rename')" show="rename" />
           <action v-if="headerButtons.copy" icon="content_copy" :label="$t('buttons.copyFile')" show="copy" />
           <action v-if="headerButtons.move" icon="forward" :label="$t('buttons.moveFile')" show="move" />
@@ -25,6 +26,7 @@
     <div v-if="isMobile" id="file-selection">
       <span v-if="selectedCount > 0">{{ selectedCount }} selected</span>
       <action v-if="headerButtons.share" icon="share" :label="$t('buttons.share')" show="share" />
+      <action v-if="headerButtons.playlist" icon="play_circle_outline" :label="$t('buttons.playlist')" @action="playlist" />
       <action v-if="headerButtons.rename" icon="mode_edit" :label="$t('buttons.rename')" show="rename" />
       <action v-if="headerButtons.copy" icon="content_copy" :label="$t('buttons.copyFile')" show="copy" />
       <action v-if="headerButtons.move" icon="forward" :label="$t('buttons.moveFile')" show="move" />
@@ -231,6 +233,7 @@ export default {
         share: this.selectedCount === 1 && this.user.perm.share,
         move: this.selectedCount > 0 && this.user.perm.rename,
         copy: this.selectedCount > 0 && this.user.perm.create,
+        playlist: this.user.perm.share && this.user.perm.download && this.selectedCount > 0,
       }
     },
     isMobile () {
@@ -617,6 +620,13 @@ export default {
       } else {
         document.getElementById('upload-input').click();
       }
+    },
+    playlist() {
+      let files = []
+      for (let i of this.selected) {
+        files.push(this.req.items[i].url)
+      }
+      api.download("m3u", ...files)
     }
   }
 }

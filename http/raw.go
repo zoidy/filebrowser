@@ -9,6 +9,9 @@ import (
 	gopath "path"
 	"path/filepath"
 	"strings"
+	"fmt"
+	"io"
+
 
 	"github.com/mholt/archiver"
 	"github.com/spf13/afero"
@@ -165,6 +168,10 @@ func addFile(ar archiver.Writer, d *data, path, commonPath string) error {
 }
 
 func rawDirHandler(w http.ResponseWriter, r *http.Request, d *data, file *files.FileInfo) (int, error) {
+	if r.URL.Query().Get("algo") == "m3u" {
+		return rawPlaylistHandler(w, r, d, file)
+	}
+
 	filenames, err := parseQueryFiles(r, file, d.user)
 	if err != nil {
 		return http.StatusInternalServerError, err
@@ -211,4 +218,73 @@ func rawFileHandler(w http.ResponseWriter, r *http.Request, file *files.FileInfo
 
 	http.ServeContent(w, r, file.Name, file.ModTime, fd)
 	return 0, nil
+}
+
+func rawPlaylistHandler(w http.ResponseWriter, r *http.Request, d *data, file *files.FileInfo) (int, error) {
+	filenames, err := parseQueryFiles(r, file, d.user)
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	name := file.Name
+	if name == "." || name == "" {
+		name = "playlist"
+	}
+	name += ".m3u"
+	w.Header().Set("Content-Disposition", "attachment; filename*=utf-8''"+url.PathEscape(name))
+
+    _, err = fmt.Fprintf(w, "#EXTM3U\n")
+	if err != nil {
+		return http.StatusInternalServerError, err
+	}
+
+	for _, fname := range filenames {
+		err = addPlaylist(w, d, fname)
+		if err != nil {
+			return http.StatusInternalServerError, err
+		}
+	}
+
+	return 0, nil
+}
+
+func addPlaylist(ar io.Writer, d *data, path string) error {
+	// Checks are always done with paths with "/" as path separator.
+	path = strings.Replace(path, "\\", "/", -1)
+	if !d.Check(path) {
+		return nil
+	}
+
+	info, err := d.user.Fs.Stat(path)
+	if err != nil {
+		return err
+	}
+
+    file, err := d.user.Fs.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		names, err := file.Readdirnames(0)
+		if err != nil {
+			return err
+		}
+
+		for _, name := range names {
+			err = addPlaylist(ar, d, filepath.Join(path, name))
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+        _, err = fmt.Fprintf(ar, fmt.Sprintf("%s\n", path))
+    }
+
+	return nil
 }
